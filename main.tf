@@ -272,8 +272,6 @@ resource "aws_codepipeline" "default" {
         FullRepositoryId     = "${var.repo_owner}/${var.repo_name}"
         BranchName           = var.branch
         DetectChanges        = false
-        PollForSourceChanges = true
-        PollForSourceChanges = var.poll_source_changes
       }
     }
   }
