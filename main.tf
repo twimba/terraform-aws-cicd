@@ -272,7 +272,7 @@ resource "aws_codepipeline" "default" {
         FullRepositoryId      = "${var.repo_owner}/${var.repo_name}"
         BranchName            = var.branch
         DetectChanges         = false
-        OutputArtifactFormat" = "CODEBUILD_CLONE_REF"
+        OutputArtifactFormat = "CODEBUILD_CLONE_REF"
       }
     }
   }
