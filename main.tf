@@ -204,7 +204,7 @@ data "aws_iam_policy_document" "codebuild" {
 
 module "codebuild" {
   source                      = "cloudposse/codebuild/aws"
-  version                     = "2.0.1"
+  version                     = "2.0.2"
   build_image                 = var.build_image
   build_compute_type          = var.build_compute_type
   buildspec                   = var.buildspec
@@ -229,28 +229,27 @@ resource "aws_iam_role_policy_attachment" "codebuild_s3" {
   policy_arn = join("", aws_iam_policy.s3[*].arn)
 }
 
+# a CodeStarConnections connection manages access to GitHub (so you do not need to use a private access token).
+resource "aws_codestarconnections_connection" "github" {
+  name          = "${module.this.id}-github"
+  provider_type = "GitHub"
+}
+
 # Only one of the `aws_codepipeline` resources below will be created:
-
 # "source_build_deploy" will be created if `local.enabled` is set to `true` and the Elastic Beanstalk application name and environment name are specified
-
 # This is used in two use-cases:
-
 # 1. GitHub -> S3 -> Elastic Beanstalk (running application stack like Node, Go, Java, IIS, Python)
-
 # 2. GitHub -> ECR (Docker image) -> Elastic Beanstalk (running Docker stack)
-
 # "source_build" will be created if `local.enabled` is set to `true` and the Elastic Beanstalk application name or environment name are not specified
-
 # This is used in this use-case:
-
 # 1. GitHub -> ECR (Docker image)
-
 resource "aws_codepipeline" "default" {
   # Elastic Beanstalk application name and environment name are specified
-  count    = local.enabled ? 1 : 0
-  name     = module.this.id
-  role_arn = join("", aws_iam_role.default[*].arn)
-  tags     = module.this.tags
+  count         = local.enabled ? 1 : 0
+  name          = module.this.id
+  role_arn      = join("", aws_iam_role.default[*].arn)
+  tags          = module.this.tags
+  pipeline_type = "V2"
 
   artifact_store {
     location = join("", aws_s3_bucket.default[*].bucket)
@@ -263,16 +262,17 @@ resource "aws_codepipeline" "default" {
     action {
       name             = "Source"
       category         = "Source"
-      owner            = "ThirdParty"
-      provider         = "GitHub"
+      owner            = "AWS"
+      provider         = "CodeStarSourceConnection"
       version          = "1"
       output_artifacts = ["code"]
 
       configuration = {
-        OAuthToken           = var.github_oauth_token
-        Owner                = var.repo_owner
-        Repo                 = var.repo_name
-        Branch               = var.branch
+        ConnectionArn        = aws_codestarconnections_connection.github.arn
+        FullRepositoryId     = "${var.repo_owner}/${var.repo_name}"
+        BranchName           = var.branch
+        DetectChanges        = false
+        PollForSourceChanges = true
         PollForSourceChanges = var.poll_source_changes
       }
     }
@@ -371,18 +371,18 @@ provider "github" {
   token = var.github_webhooks_token 
 }
 
-module "github_webhook" {
-  source  = "cloudposse/repository-webhooks/github"
-  version = "0.14.0"
+# module "github_webhook" {
+#   source  = "cloudposse/repository-webhooks/github"
+#   version = "0.14.0"
 
-  enabled              = local.webhook_enabled
-  # github_organization  = var.repo_owner
-  github_repositories  = [var.repo_name]
-  # github_token         = var.github_webhooks_token
-  webhook_url          = local.webhook_url
-  webhook_secret       = local.webhook_secret
-  webhook_content_type = "json"
-  events               = var.github_webhook_events
+#   enabled              = local.webhook_enabled
+#   # github_organization  = var.repo_owner
+#   github_repositories  = [var.repo_name]
+#   # github_token         = var.github_webhooks_token
+#   webhook_url          = local.webhook_url
+#   webhook_secret       = local.webhook_secret
+#   webhook_content_type = "json"
+#   events               = var.github_webhook_events
 
-  context = module.this.context
-}
+#   context = module.this.context
+# }
